@@ -43,6 +43,7 @@
 #endif
 
 #include <ardrone_tool/Video/video_com_stage.h>
+#include <Mqtt/MQTTAsync_publish.h>
 
 #include "Video/video_stage.h"
 
@@ -64,6 +65,13 @@ C_RESULT output_gtk_stage_transform( void *cfg, vp_api_io_data_t *in, vp_api_io_
  
   /* Get a reference to the last decoded picture */
   pixbuf_data      = (uint8_t*)in->buffers[0];
+
+  /*TODO SUREKA; WRITE CODE HERE TO TRANSMIT THE PIXBUF DATA WHICH IS OF TYPE uint8_t* */
+  MQTTAsync client = initiateMQTTConnection("tcp://unmand.io:1884","ExampleClientPub");
+  const char topic[] = "image/imagestream";
+  publishMqttMsgOnTopic(client,topic, pixbuf_data);
+
+  disconnectMQTTConnection(client);
 
   vp_os_mutex_unlock(&video_update_lock);
 
