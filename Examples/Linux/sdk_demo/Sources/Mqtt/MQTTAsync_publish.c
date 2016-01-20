@@ -33,6 +33,7 @@
 volatile MQTTAsync_token deliveredtoken;
 
 int finished = 0;
+int mqttConnected = 0;
 
 void connlost(void *context, char *cause)
 {
@@ -87,33 +88,15 @@ void onConnectFailure(void* context, MQTTAsync_failureData* response)
 	finished = 1;
 }
 
-/*
+
 //Sureka-TODO-Later We do not want to send a Hello world message on Connect! Fine for now.
 void onConnect(void* context, MQTTAsync_successData* response)
 {
-	MQTTAsync client = (MQTTAsync)context;
-	MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
-	MQTTAsync_message pubmsg = MQTTAsync_message_initializer;
-	int rc;
-
 	printf("Successful connection\n");
-	
-	opts.onSuccess = onSend;
-	opts.context = client;
-
-	pubmsg.payload = PAYLOAD;
-	pubmsg.payloadlen = strlen(PAYLOAD);
-	pubmsg.qos = QOS;
-	pubmsg.retained = 0;
-	deliveredtoken = 0;
-
-	if ((rc = MQTTAsync_sendMessage(client, TOPIC, &pubmsg, &opts)) != MQTTASYNC_SUCCESS)
-	{
-		printf("Failed to start sendMessage, return code %d\n", rc);
- 		exit(-1);	
-	}
+  mqttConnected = 1;
+  return;
 }
-*/
+
 MQTTAsync initiateMQTTConnection(char* Address, char* ClientID)
 {
   MQTTAsync client;
@@ -126,7 +109,7 @@ MQTTAsync initiateMQTTConnection(char* Address, char* ClientID)
 
   conn_opts.keepAliveInterval = 20;
   conn_opts.cleansession = 1;
-//  conn_opts.onSuccess = onConnect;
+  conn_opts.onSuccess = onConnect;
   conn_opts.onFailure = onConnectFailure;
   conn_opts.context = client;
 
@@ -136,10 +119,12 @@ MQTTAsync initiateMQTTConnection(char* Address, char* ClientID)
     exit(-1);
     return NULL;
   }
-  else
+  
+  while(!mqttConnected)
   {
-    return client;
+    usleep(100);
   }
+  return client;
 }
 //Sureka-TODO - Do not initialize a client each time a message needs to be published
 int publishMqttMsgOnTopic(MQTTAsync client, char* topic, char* data)

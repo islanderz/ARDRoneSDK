@@ -18,7 +18,6 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
 {
 	const navdata_demo_t* nd = &navdata->navdata_demo;
 
-  //d
 	printf("=============================  Publishing data ===============================");
 
 	//publishText();
@@ -26,14 +25,21 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
   //Format: initiateMQTTConnection(Server, ClientID);
 
   //Test this by initiaing a persistent connection and not connecting each time.
+
   MQTTAsync client = initiateMQTTConnection("tcp://unmand.io:1884","ExampleClientPub");
+  if(client != NULL)
+  {
+    char data[15];
+    sprintf(data, "%i", nd->altitude);
+    const char topic[] = "navdata/altd";
+    publishMqttMsgOnTopic(client,topic, data);
 
-  char data[15];
-  sprintf(data, "%i", nd->altitude);
-  const char topic[] = "navdata/altd";
-  publishMqttMsgOnTopic(client,topic, data);
-
-  disconnectMQTTConnection(client);
+    disconnectMQTTConnection(client);
+  }
+  else
+  {
+    printf("Error in MQTT Connection..");
+  }
 
 
 	printf("=====================\nNavdata for flight demonstrations =====================\n\n");
