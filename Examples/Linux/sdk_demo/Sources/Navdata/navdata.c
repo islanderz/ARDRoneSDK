@@ -4,9 +4,14 @@
 #include <stdio.h>
 #include <Mqtt/MQTTAsync_publish.h>
 
+int TestVariable = 1;
+
 /* Initialization local variables before event loop  */
 inline C_RESULT demo_navdata_client_init( void* data )
 {
+
+  TestVariable = 2;
+
   return C_OK;
   //TODO SuREKA - for initializing connection just once, we can probably initialize a global 
   //variable MQTTAsync Client and then call the initiateMQTTConnection() function here!
@@ -18,6 +23,9 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
 {
 	const navdata_demo_t* nd = &navdata->navdata_demo;
 
+  TestVariable++;
+  printf("Test Variable Value is: %d\n",TestVariable);
+
 	printf("=============================  Publishing data ===============================");
 
 	//publishText();
@@ -26,7 +34,7 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
 
   //Test this by initiaing a persistent connection and not connecting each time.
 
-  MQTTAsync client = initiateMQTTConnection("tcp://unmand.io:1884","ExampleClientPub");
+ /* MQTTAsync client = initiateMQTTConnection("tcp://unmand.io:1884","ExampleClientPub");
   if(client != NULL)
   {
     char data[15];
@@ -40,7 +48,7 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
   {
     printf("Error in MQTT Connection..");
   }
-
+  */
 
 	printf("=====================\nNavdata for flight demonstrations =====================\n\n");
 
