@@ -127,7 +127,7 @@ MQTTAsync initiateMQTTConnection(char* Address, char* ClientID)
   return client;
 }
 //Sureka-TODO - Do not initialize a client each time a message needs to be published
-int publishMqttMsgOnTopic(MQTTAsync client, char* topic, char* data)
+int publishMqttMsgOnTopic(MQTTAsync client, char* topic, unsigned char* data, int datalen)
 {
 /* -- Sureka - NOTE - Attempt to initialize client just once 
   MQTTAsync client;
@@ -156,7 +156,7 @@ int publishMqttMsgOnTopic(MQTTAsync client, char* topic, char* data)
   int rc; 
   MQTTAsync_message pubmsg = MQTTAsync_message_initializer;
   pubmsg.payload = data;
-  pubmsg.payloadlen = strlen(data);
+  pubmsg.payloadlen = datalen;
   pubmsg.qos = QOS;
   pubmsg.retained = 0;
 

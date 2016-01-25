@@ -54,8 +54,12 @@ PIPELINE_HANDLE pipeline_handle;
 static uint8_t*  pixbuf_data       = NULL;
 static vp_os_mutex_t  video_update_lock = PTHREAD_MUTEX_INITIALIZER;
 
+MQTTAsync videoClient;
+
+
 C_RESULT output_gtk_stage_open( void *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out)
 {
+  videoClient = initiateMQTTConnection("tcp://unmand.io:1884","VideoClient");
   return (SUCCESS);
 }
 
@@ -66,12 +70,15 @@ C_RESULT output_gtk_stage_transform( void *cfg, vp_api_io_data_t *in, vp_api_io_
   /* Get a reference to the last decoded picture */
   pixbuf_data      = (uint8_t*)in->buffers[0];
 
-  /*TODO SUREKA; WRITE CODE HERE TO TRANSMIT THE PIXBUF DATA WHICH IS OF TYPE uint8_t* */
-  MQTTAsync client = initiateMQTTConnection("tcp://unmand.io:1884","ExampleClientPub");
-  const char topic[] = "image/imagestream";
-  publishMqttMsgOnTopic(client,topic, pixbuf_data);
-
-  disconnectMQTTConnection(client);
+  if(videoClient != NULL)
+  {
+    //There is a possibility of an error in the sizeof(pixbuf_data) call below.
+    publishMqttMsgOnTopic(videoClient,"image/imagestream", pixbuf_data, sizeof(pixbuf_data));
+  }
+  else
+  {
+    printf("Error in VideoClient mqtt connection...\n");
+  }
 
   vp_os_mutex_unlock(&video_update_lock);
 
@@ -80,6 +87,7 @@ C_RESULT output_gtk_stage_transform( void *cfg, vp_api_io_data_t *in, vp_api_io_
 
 C_RESULT output_gtk_stage_close( void *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out)
 {
+  disconnectMQTTConnection(videoClient);
   return (SUCCESS);
 }
 

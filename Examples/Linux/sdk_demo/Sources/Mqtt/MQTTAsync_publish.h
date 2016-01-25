@@ -5,7 +5,7 @@
 
 MQTTAsync initiateMQTTConnection(char* Address, char* ClientID);
 
-int publishMqttMsgOnTopic(MQTTAsync client, char* topic, char* data);
+int publishMqttMsgOnTopic(MQTTAsync client, char* topic, unsigned char* data, int datalen);
 
 void disconnectMQTTConnection(MQTTAsync client);
 

@@ -3,19 +3,14 @@
 #include <Navdata/navdata.h>
 #include <stdio.h>
 #include <Mqtt/MQTTAsync_publish.h>
+MQTTAsync client;
 
-int TestVariable = 1;
 
 /* Initialization local variables before event loop  */
 inline C_RESULT demo_navdata_client_init( void* data )
 {
-
-  TestVariable = 2;
-
+  client = initiateMQTTConnection("tcp://unmand.io:1884","ArdroneSDkNavdataClient");
   return C_OK;
-  //TODO SuREKA - for initializing connection just once, we can probably initialize a global 
-  //variable MQTTAsync Client and then call the initiateMQTTConnection() function here!
-  //Should test once we are sure this one works.
 }
 
 /* Receving navdata during the event loop */
@@ -23,32 +18,33 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
 {
 	const navdata_demo_t* nd = &navdata->navdata_demo;
 
-  TestVariable++;
-  printf("Test Variable Value is: %d\n",TestVariable);
+  printf("=============================  Publishing data ===============================");
 
-	printf("=============================  Publishing data ===============================");
-
-	//publishText();
-  
-  //Format: initiateMQTTConnection(Server, ClientID);
-
-  //Test this by initiaing a persistent connection and not connecting each time.
-
- /* MQTTAsync client = initiateMQTTConnection("tcp://unmand.io:1884","ExampleClientPub");
   if(client != NULL)
   {
-    char data[15];
-    sprintf(data, "%i", nd->altitude);
-    const char topic[] = "navdata/altd";
-    publishMqttMsgOnTopic(client,topic, data);
+    //TODO:Sureka: We are sending each value in a separate message. Optimize this using serialization.
 
-    disconnectMQTTConnection(client);
+    //altitude
+    unsigned char altitudeBuffer[sizeof(int32_t)];
+    int2Bytes(nd->altitude,&altitudeBuffer[0]);
+    publishMqttMsgOnTopic(client,"navdata/altd", altitudeBuffer, sizeof(int32_t));
+
+    //orientation
+    //Add the floats to the orientationBuffer - one float at a time and then publish it.
+    unsigned char orientationBuffer[3*sizeof(float)];
+    int byteCounter = 0;
+    float2Bytes(nd->theta,&orientationBuffer[byteCounter]);
+    byteCounter += sizeof(float);
+    float2Bytes(nd->phi,&orientationBuffer[byteCounter]);
+    byteCounter += sizeof(float);
+    float2Bytes(nd->psi,&orientationBuffer[byteCounter]);
+    publishMqttMsgOnTopic(client,"navdata/orientation", orientationBuffer, 3*sizeof(float));
   }
   else
   {
     printf("Error in MQTT Connection..");
   }
-  */
+
 
 	printf("=====================\nNavdata for flight demonstrations =====================\n\n");
 
@@ -66,6 +62,7 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
 /* Relinquish the local resources after the event loop exit */
 inline C_RESULT demo_navdata_client_release( void )
 {
+  disconnectMQTTConnection(client);
   return C_OK;
 }
 
