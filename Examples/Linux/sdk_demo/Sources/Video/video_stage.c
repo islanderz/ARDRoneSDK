@@ -13,6 +13,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <zlib.h>
 
 #include <sys/time.h>
 #include <time.h>
@@ -55,11 +56,19 @@ static uint8_t*  pixbuf_data       = NULL;
 static vp_os_mutex_t  video_update_lock = PTHREAD_MUTEX_INITIALIZER;
 
 MQTTAsync videoClient;
-
+//z_stream strm;
 
 C_RESULT output_gtk_stage_open( void *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out)
 {
   videoClient = initiateMQTTConnection("tcp://unmand.io:1884","VideoClient");
+
+//  strm.zalloc = Z_NULL;
+//  strm.zfree = Z_NULL;
+//  strm.opaque = Z_NULL;
+//  if(deflateInit(&strm, Z_DEFAULT_COMPRESSION) != Z_OK)
+//  {
+//    printf("Error in initializing compression library Zlib..\n");
+//  }
   return (SUCCESS);
 }
 
@@ -70,10 +79,18 @@ C_RESULT output_gtk_stage_transform( void *cfg, vp_api_io_data_t *in, vp_api_io_
   /* Get a reference to the last decoded picture */
   pixbuf_data      = (uint8_t*)in->buffers[0];
 
+
   if(videoClient != NULL)
   {
     //There is a possibility of an error in the sizeof(pixbuf_data) call below.
-    publishMqttMsgOnTopic(videoClient,"image/imagestream", pixbuf_data, sizeof(pixbuf_data));
+    unsigned long ucompSize = sizeof(pixbuf_data);
+    unsigned long compSize = compressBound(ucompSize);
+
+    uint8_t* compData;
+    compData = (uint8_t*)vp_os_malloc(compSize);
+    compress(compData, &compSize, pixbuf_data, ucompSize);
+    publishMqttMsgOnTopic(videoClient,"image/compressedImageStream", compData, compSize);
+//    publishMqttMsgOnTopic(videoClient,"image/uncompressedImageStream", pixbuf_data, ucompSize);
   }
   else
   {
