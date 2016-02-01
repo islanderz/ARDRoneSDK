@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <Mqtt/MQTTAsync_publish.h>
 #include <binn.h>
+#include <time.h>
 
 MQTTAsync client;
 
@@ -34,6 +35,7 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
     
     //add values
 
+    binn_object_set_uint32(obj, "timestamp", (uint32_t)time(NULL));
     binn_object_set_uint16(obj, "tag", nd->tag);
     binn_object_set_uint16(obj, "size", nd->size);
     binn_object_set_uint32(obj, "ctrl_state", nd->ctrl_state);
