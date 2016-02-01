@@ -127,7 +127,7 @@ MQTTAsync initiateMQTTConnection(char* Address, char* ClientID)
   return client;
 }
 //Sureka-TODO - Do not initialize a client each time a message needs to be published
-int publishMqttMsgOnTopic(MQTTAsync client, char* topic, unsigned char* data, int datalen)
+int publishMqttMsgOnTopic(MQTTAsync client, char* topic, void* data, int datalen)
 {
 /* -- Sureka - NOTE - Attempt to initialize client just once 
   MQTTAsync client;
@@ -166,12 +166,12 @@ int publishMqttMsgOnTopic(MQTTAsync client, char* topic, unsigned char* data, in
 
   if ((rc = MQTTAsync_sendMessage(client, topic, &pubmsg, &opts)) != MQTTASYNC_SUCCESS)
   {
-    printf("Failed to send Message %s\n on topic %s. Return code %d\n", data, topic, rc);
+    printf("Failed to send Message on topic %s. Return code %d\n", topic, rc);
     exit(-1);
   }
   else
-  {
-    printf("Published message %s\n on topic %s\n", data, topic);
+ {
+    printf("Published message on topic %s\n", topic);
   }
 
 //  MQTTAsync_destroy(&client);

@@ -3,6 +3,8 @@
 #include <Navdata/navdata.h>
 #include <stdio.h>
 #include <Mqtt/MQTTAsync_publish.h>
+#include <binn.h>
+
 MQTTAsync client;
 
 
@@ -22,23 +24,36 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
 
   if(client != NULL)
   {
-    //TODO:Sureka: We are sending each value in a separate message. Optimize this using serialization.
+    //serializing using binn library.
 
-    //altitude
-    unsigned char altitudeBuffer[sizeof(int32_t)];
-    int2Bytes(nd->altitude,&altitudeBuffer[0]);
-    publishMqttMsgOnTopic(client,"navdata/altd", altitudeBuffer, sizeof(int32_t));
+    //initialize obj
+    binn* obj;
+    obj = binn_object();
+    
+    //all fields taken from navdata_demo_t structure in navdata_common.h
+    
+    //add values
 
-    //orientation
-    //Add the floats to the orientationBuffer - one float at a time and then publish it.
-    unsigned char orientationBuffer[3*sizeof(float)];
-    int byteCounter = 0;
-    float2Bytes(nd->theta,&orientationBuffer[byteCounter]);
-    byteCounter += sizeof(float);
-    float2Bytes(nd->phi,&orientationBuffer[byteCounter]);
-    byteCounter += sizeof(float);
-    float2Bytes(nd->psi,&orientationBuffer[byteCounter]);
-    publishMqttMsgOnTopic(client,"navdata/orientation", orientationBuffer, 3*sizeof(float));
+    binn_object_set_uint16(obj, "tag", nd->tag);
+    binn_object_set_uint16(obj, "size", nd->size);
+    binn_object_set_uint32(obj, "ctrl_state", nd->ctrl_state);
+    binn_object_set_uint32(obj, "vbat_flying_percentage", nd->vbat_flying_percentage);
+    binn_object_set_float(obj, "theta", nd->theta);
+    binn_object_set_float(obj, "phi", nd->phi);
+    binn_object_set_float(obj, "psi", nd->psi);
+    binn_object_set_uint32(obj, "altitude", nd->altitude);
+    binn_object_set_float(obj, "vx", nd->vx);
+    binn_object_set_float(obj, "vy", nd->vy);
+    binn_object_set_float(obj, "vz", nd->vz);
+    binn_object_set_uint32(obj, "num_frames", nd->num_frames);
+    binn_object_set_uint32(obj, "detection_camera_type", nd->detection_camera_type);
+    //binn_object_set_str(obj, "name", "John");
+
+    //publish data from the binn using mqtt
+    publishMqttMsgOnTopic(client,"uas/ardrone1/navdata", binn_ptr(obj), binn_size(obj));
+    
+    // release the buffer
+    binn_free(obj);
   }
   else
   {
