@@ -89,7 +89,7 @@ C_RESULT output_gtk_stage_transform( void *cfg, vp_api_io_data_t *in, vp_api_io_
     uint8_t* compData;
     compData = (uint8_t*)vp_os_malloc(compSize);
     compress(compData, &compSize, pixbuf_data, ucompSize);
-    publishMqttMsgOnTopic(videoClient,"image/compressedImageStream", compData, compSize);
+    publishMqttMsgOnTopic(videoClient,"uas/uav1/compressedImageStream", compData, compSize);
 //    publishMqttMsgOnTopic(videoClient,"image/uncompressedImageStream", pixbuf_data, ucompSize);
   }
   else

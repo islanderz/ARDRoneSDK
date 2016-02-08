@@ -33,13 +33,28 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
     
     //all fields taken from navdata_demo_t structure in navdata_common.h
     
-    //add values
+    //HS_02082016
+    //these are the fields that are required in the ROS Ardrone_autonomy Navdata.msg which we want to publish on the ROS side.
+    //reference has been takjen from ardrone_navdata_file.c
 
-    binn_object_set_uint32(obj, "timestamp", (uint32_t)time(NULL));
-    binn_object_set_uint16(obj, "tag", nd->tag);
-    binn_object_set_uint16(obj, "size", nd->size);
-    binn_object_set_uint32(obj, "ctrl_state", nd->ctrl_state);
     binn_object_set_uint32(obj, "vbat_flying_percentage", nd->vbat_flying_percentage);
+    binn_object_set_uint32(obj, "ctrl_state", nd->ctrl_state);
+    //    //HS_02082016 - Apparently tum_ardrone doesn't require mx,my,mz
+    //binn_object_set_int32(obj, "mx", navdata->navdata_magneto.mx);
+    //binn_object_set_int32(obj, "my", navdata->navdata_magneto.my);
+    //binn_object_set_int32(obj, "mz", navdata->navdata_magneto.mz);
+    //(signed int) pnd->navdata_magneto.mx,
+    //(signed int) pnd->navdata_magneto.my,
+    //(signed int) pnd->navdata_magneto.mz
+
+    binn_object_set_int32(obj, "pressure", navdata->navdata_pressure_raw.Pression_meas);
+
+    //Doesn't seem to be required by tum_ardrone
+    //(signed int) pnd->navdata_pressure_raw.Temperature_meas
+    //pnd->navdata_wind_speed.wind_speed,
+    //pnd->navdata_wind_speed.wind_angle,
+    //pnd->navdata_wind_speed.wind_compensation_phi,
+
     binn_object_set_float(obj, "theta", nd->theta);
     binn_object_set_float(obj, "phi", nd->phi);
     binn_object_set_float(obj, "psi", nd->psi);
@@ -47,12 +62,29 @@ inline C_RESULT demo_navdata_client_process( const navdata_unpacked_t* const nav
     binn_object_set_float(obj, "vx", nd->vx);
     binn_object_set_float(obj, "vy", nd->vy);
     binn_object_set_float(obj, "vz", nd->vz);
+    //quick grep in tum_ardrone says we don't need this: HS02082016
+    //navdata->navdata_phys_measures.phys_accs[ACC_X],
+    //navdata->navdata_phys_measures.phys_accs[ACC_Y],
+    //navdata->navdata_phys_measures.phys_accs[ACC_Z]
+
+    binn_object_set_uint32(obj, "motor1", navdata->navdata_pwm.motor1);
+    binn_object_set_uint32(obj, "motor2", navdata->navdata_pwm.motor2);
+    binn_object_set_uint32(obj, "motor3", navdata->navdata_pwm.motor3);
+    binn_object_set_uint32(obj, "motor4", navdata->navdata_pwm.motor4);
+    //(unsigned int) pnd->navdata_vision_detect.nb_detected 
+    //missing tags loop
+    binn_object_set_uint32(obj, "tm", navdata->navdata_time.time);
+
+    /* Apparently not required
+    binn_object_set_uint32(obj, "timestamp", (uint32_t)time(NULL));
+    binn_object_set_uint16(obj, "tag", nd->tag);
+    binn_object_set_uint16(obj, "size", nd->size);
     binn_object_set_uint32(obj, "num_frames", nd->num_frames);
     binn_object_set_uint32(obj, "detection_camera_type", nd->detection_camera_type);
-    //binn_object_set_str(obj, "name", "John");
+    */
 
     //publish data from the binn using mqtt
-    publishMqttMsgOnTopic(client,"uas/ardrone1/navdata", binn_ptr(obj), binn_size(obj));
+    publishMqttMsgOnTopic(client,"uas/uav1/navdata", binn_ptr(obj), binn_size(obj));
     
     // release the buffer
     binn_free(obj);
