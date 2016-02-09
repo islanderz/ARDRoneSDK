@@ -7,6 +7,8 @@ SDK_PATH:=$(shell pwd)/../../../../ARDroneLib
 PC_TARGET=yes
 USE_LINUX=yes
 
+PAHO_C_LIB ?= /home/harshit/upwork/org.eclipse.paho.mqtt.c
+
 ifdef MYKONOS
    include $(ARDRONE_CUSTOM_CONFIG)
    include $(ARDRONE_BUILD_CONFIG)
@@ -55,6 +57,7 @@ GENERIC_BINARIES_COMMON_SOURCE_FILES+=			\
 	$(IHM_SRC_PATH)/ihm_stages_o_gtk.c    		\
 	$(IHM_SRC_PATH)/ihm.c \
 	$(IHM_SRC_PATH)/ihm_config.c \
+    Mqtt/MQTTAsync_publish.c    \
 	$(IHM_SRC_PATH)/ihm_raw_navdata.c
 
 ifeq ($(PC_USE_POLARIS),yes)
@@ -83,7 +86,10 @@ GENERIC_INCLUDES+=					\
 	$(LIB_DIR) \
 	$(SDK_PATH)/Soft/Common \
 	$(SDK_PATH)/Soft/Lib \
-	/usr/include/libxml2
+	/usr/include/libxml2 \
+  $(PAHO_C_LIB)/build/output \
+	$(PAHO_C_LIB)/src \
+    $(SRC_DIR)/Mqtt
 
 ifeq ($(PC_USE_POLARIS),yes)
    GENERIC_INCLUDES+=					\
@@ -128,7 +134,7 @@ endif
 
 GENERIC_LIB_PATHS=-L$(GENERIC_TARGET_BINARIES_DIR)
 GENERIC_CFLAGS+=-DLIBUDEV_I_KNOW_THE_API_IS_SUBJECT_TO_CHANGE
-GENERIC_LIBS+=-liw -lpc_ardrone -lgthread-2.0 -lgtk-x11-2.0 -lrt -lxml2 -ludev -lswscale -lSDL -lm
+GENERIC_LIBS+=-liw -lpc_ardrone -lgthread-2.0 -lgtk-x11-2.0 -lrt -lxml2 -ludev -lswscale -lSDL -lm -lpaho-mqtt3a -lz -lbinn
 
 #ifeq ($(USE_ARDRONE_VISION),yes)
 #   GENERIC_LIBS+=-lpc_vision

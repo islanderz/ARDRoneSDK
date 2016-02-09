@@ -55,6 +55,10 @@
 #include "common/mobile_config.h"
 
 #include <video_encapsulation.h>
+#include <Mqtt/MQTTAsync_publish.h>
+#include <zlib.h>
+
+MQTTAsync videoClient;
 
 extern GtkWidget *ihm_ImageWin, *ihm_ImageEntry[9], *ihm_ImageDA, *ihm_VideoStream_VBox;
 /* For fullscreen video display */
@@ -108,6 +112,8 @@ extern int DEBUG_isTcp;
 
 C_RESULT output_gtk_stage_open(vp_stages_gtk_config_t *cfg)//, vp_api_io_data_t *in, vp_api_io_data_t *out)
 {
+    //printf("SUREKA - video Stage is open, Testcounter: %d\n",Testcounter++);
+    videoClient = initiateMQTTConnection("tcp://unmand.io:1884","ArdroneSDkVideoClient");
     return (SUCCESS);
 }
 
@@ -120,6 +126,8 @@ int video_information_buffer_index = 0;
 
 C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out) {
     
+
+    //printf("SUREKA  - INSIDE OUTPUT GTK STAGE TRANSFORM, Counter: %d\n", Testcounter++);
 
     if (!ihm_is_initialized) return SUCCESS;
     if (ihm_ImageWin == NULL) return SUCCESS;
@@ -149,6 +157,23 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
     pixbuf_height = dec_config->src_picture->height;
     pixbuf_rowstride = dec_config->rowstride;
     pixbuf_data = (uint8_t*) in->buffers[in->indexBuffer];
+
+  if(videoClient != NULL && pixbuf_data != NULL)
+  {
+    //There is a possibility of an error in the sizeof(pixbuf_data) call below.
+    unsigned long ucompSize = sizeof(pixbuf_data);
+    unsigned long compSize = compressBound(ucompSize);
+
+    uint8_t* compData;
+    compData = (uint8_t*)vp_os_malloc(compSize);
+    compress(compData, &compSize, pixbuf_data, ucompSize);
+    publishMqttMsgOnTopic(videoClient,"uas/uav1/compressedImageStream", compData, compSize);
+  }
+  else
+  {
+    printf("Error in VideoClient mqtt connection...\n");
+  }
+
 
     if (pixbuf != NULL) {
         g_object_unref(pixbuf);
@@ -291,6 +316,8 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
 }
 
 C_RESULT output_gtk_stage_close(vp_stages_gtk_config_t *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out) {
+    printf("SUREKA - Video stage is closed\n");
+    disconnectMQTTConnection(videoClient);
     return (SUCCESS);
 }
 
