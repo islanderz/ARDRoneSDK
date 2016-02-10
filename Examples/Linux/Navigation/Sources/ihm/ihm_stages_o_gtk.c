@@ -170,7 +170,7 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
 
     if(USE_ZLIB_FOR_IMG_COMPRESSION)
     {
-      unsigned long ucompSize = sizeof(pixbuf_data);
+      unsigned long ucompSize = in->size;
       sendDataSize = compressBound(ucompSize);
 
       sendDataPtr = (uint8_t*)vp_os_malloc(sendDataSize);
@@ -178,7 +178,7 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
       if(ret_cp != Z_OK)
       {
         printf("Some error in compression... sending uncompressed data\n");
-        sendDataSize = sizeof(pixbuf_data);
+        sendDataSize = in->size;
         sendDataPtr = pixbuf_data;
         //sending on topic uncompressedImageStream
         publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", sendDataPtr, sendDataSize);
@@ -191,7 +191,7 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
     }
     else //no compression
     {
-      sendDataSize = sizeof(pixbuf_data);
+      sendDataSize = in->size;
       sendDataPtr = pixbuf_data;
       //sending on topic uncompressedImageStream
       publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", sendDataPtr, sendDataSize);

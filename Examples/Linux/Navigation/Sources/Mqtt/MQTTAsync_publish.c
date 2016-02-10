@@ -169,10 +169,10 @@ int publishMqttMsgOnTopic(MQTTAsync client, char* topic, void* data, int datalen
     printf("Failed to send Message on topic %s. Return code %d\n", topic, rc);
     exit(-1);
   }
-  else
- {
-    printf("Published message on topic %s\n", topic);
-  }
+//  else
+// {
+//    printf("Published message on topic %s\n", topic);
+//  }
 
 //  MQTTAsync_destroy(&client);
   return rc;
