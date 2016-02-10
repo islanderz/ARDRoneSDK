@@ -56,6 +56,7 @@
 
 #include <video_encapsulation.h>
 #include <Mqtt/MQTTAsync_publish.h>
+#include <binn.h>
 
 int USE_ZLIB_FOR_IMG_COMPRESSION = 0;
 
@@ -167,6 +168,11 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
 
     unsigned long sendDataSize = 0;
     uint8_t* sendDataPtr;
+    binn* obj;
+    obj = binn_object();
+
+    binn_object_set_uint32(obj, "width", pixbuf_width);
+    binn_object_set_uint32(obj, "height", pixbuf_height);
 
     if(USE_ZLIB_FOR_IMG_COMPRESSION)
     {
@@ -181,12 +187,14 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
         sendDataSize = in->size;
         sendDataPtr = pixbuf_data;
         //sending on topic uncompressedImageStream
-        publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", sendDataPtr, sendDataSize);
+        binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
+        publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", binn_ptr(obj), binn_size(obj));
       }
-      else
+      else //error in compression
       {
         //sending on topic compressedImageStream
-        publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", sendDataPtr, sendDataSize);
+        binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
+        publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", binn_ptr(obj), binn_size(obj));
       }
     }
     else //no compression
@@ -194,8 +202,10 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
       sendDataSize = in->size;
       sendDataPtr = pixbuf_data;
       //sending on topic uncompressedImageStream
-      publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", sendDataPtr, sendDataSize);
+      binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
+      publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", binn_ptr(obj), binn_size(obj));
     }
+    binn_free(obj);
   }
   else
   {
