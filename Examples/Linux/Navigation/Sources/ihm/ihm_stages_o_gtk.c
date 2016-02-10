@@ -56,6 +56,9 @@
 
 #include <video_encapsulation.h>
 #include <Mqtt/MQTTAsync_publish.h>
+
+int USE_ZLIB_FOR_IMG_COMPRESSION = 0;
+
 #include <zlib.h>
 
 MQTTAsync videoClient;
@@ -112,62 +115,87 @@ extern int DEBUG_isTcp;
 
 C_RESULT output_gtk_stage_open(vp_stages_gtk_config_t *cfg)//, vp_api_io_data_t *in, vp_api_io_data_t *out)
 {
-    //printf("SUREKA - video Stage is open, Testcounter: %d\n",Testcounter++);
-    videoClient = initiateMQTTConnection("tcp://unmand.io:1884","ArdroneSDkVideoClient");
-    return (SUCCESS);
+  //printf("SUREKA - video Stage is open, Testcounter: %d\n",Testcounter++);
+  videoClient = initiateMQTTConnection("tcp://unmand.io:1884","ArdroneSDkVideoClient");
+  return (SUCCESS);
 }
 
 void destroy_image_callback(GtkWidget *widget, gpointer data) {
-    image = NULL;
+  image = NULL;
 }
 
 char video_information_buffer[1024];
 int video_information_buffer_index = 0;
 
 C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out) {
-    
-
-    //printf("SUREKA  - INSIDE OUTPUT GTK STAGE TRANSFORM, Counter: %d\n", Testcounter++);
-
-    if (!ihm_is_initialized) return SUCCESS;
-    if (ihm_ImageWin == NULL) return SUCCESS;
-    if (image_vision_window_view != WINDOW_VISIBLE) return SUCCESS;
 
 
-    gdk_threads_enter(); //http://library.gnome.org/devel/gdk/stable/gdk-Threads.html
-    static struct timeval tvPrev = {0, 0}, tvNow = {0, 0};
-    static int nbFramesForCalc = 1;
+  //printf("SUREKA  - INSIDE OUTPUT GTK STAGE TRANSFORM, Counter: %d\n", Testcounter++);
+
+  if (!ihm_is_initialized) return SUCCESS;
+  if (ihm_ImageWin == NULL) return SUCCESS;
+  if (image_vision_window_view != WINDOW_VISIBLE) return SUCCESS;
+
+
+  gdk_threads_enter(); //http://library.gnome.org/devel/gdk/stable/gdk-Threads.html
+  static struct timeval tvPrev = {0, 0}, tvNow = {0, 0};
+  static int nbFramesForCalc = 1;
 #define CALCULATE_EVERY_X_FRAMES 10
-    if (0 == --nbFramesForCalc)
-      {
-        nbFramesForCalc = CALCULATE_EVERY_X_FRAMES;
-        tvPrev.tv_sec = tvNow.tv_sec;
-        tvPrev.tv_usec = tvNow.tv_usec;
-        gettimeofday(&tvNow, NULL);
-        if (0 != tvPrev.tv_sec) // Avoid first time calculation
-          {
-            float timeDiffMillis = ((tvNow.tv_sec - tvPrev.tv_sec) * 1000.0) + ((tvNow.tv_usec - tvPrev.tv_usec) / 1000.0);
-            DEBUG_fps = (0.8 * DEBUG_fps) + (0.2 * ((1000.0 * CALCULATE_EVERY_X_FRAMES) / timeDiffMillis));
-          }
-      }
+  if (0 == --nbFramesForCalc)
+  {
+    nbFramesForCalc = CALCULATE_EVERY_X_FRAMES;
+    tvPrev.tv_sec = tvNow.tv_sec;
+    tvPrev.tv_usec = tvNow.tv_usec;
+    gettimeofday(&tvNow, NULL);
+    if (0 != tvPrev.tv_sec) // Avoid first time calculation
+    {
+      float timeDiffMillis = ((tvNow.tv_sec - tvPrev.tv_sec) * 1000.0) + ((tvNow.tv_usec - tvPrev.tv_usec) / 1000.0);
+      DEBUG_fps = (0.8 * DEBUG_fps) + (0.2 * ((1000.0 * CALCULATE_EVERY_X_FRAMES) / timeDiffMillis));
+    }
+  }
 
-    video_decoder_config_t * dec_config;
-    dec_config = (video_decoder_config_t *) cfg->last_decoded_frame_info;
-    pixbuf_width = dec_config->src_picture->width;
-    pixbuf_height = dec_config->src_picture->height;
-    pixbuf_rowstride = dec_config->rowstride;
-    pixbuf_data = (uint8_t*) in->buffers[in->indexBuffer];
+  video_decoder_config_t * dec_config;
+  dec_config = (video_decoder_config_t *) cfg->last_decoded_frame_info;
+  pixbuf_width = dec_config->src_picture->width;
+  pixbuf_height = dec_config->src_picture->height;
+  pixbuf_rowstride = dec_config->rowstride;
+  pixbuf_data = (uint8_t*) in->buffers[in->indexBuffer];
 
   if(videoClient != NULL && pixbuf_data != NULL)
   {
     //There is a possibility of an error in the sizeof(pixbuf_data) call below.
-    unsigned long ucompSize = sizeof(pixbuf_data);
-    unsigned long compSize = compressBound(ucompSize);
 
-    uint8_t* compData;
-    compData = (uint8_t*)vp_os_malloc(compSize);
-    compress(compData, &compSize, pixbuf_data, ucompSize);
-    publishMqttMsgOnTopic(videoClient,"uas/uav1/compressedImageStream", compData, compSize);
+    unsigned long sendDataSize = 0;
+    uint8_t* sendDataPtr;
+
+    if(USE_ZLIB_FOR_IMG_COMPRESSION)
+    {
+      unsigned long ucompSize = sizeof(pixbuf_data);
+      sendDataSize = compressBound(ucompSize);
+
+      sendDataPtr = (uint8_t*)vp_os_malloc(sendDataSize);
+      int ret_cp = compress(sendDataPtr, &sendDataSize, pixbuf_data, ucompSize);
+      if(ret_cp != Z_OK)
+      {
+        printf("Some error in compression... sending uncompressed data\n");
+        sendDataSize = sizeof(pixbuf_data);
+        sendDataPtr = pixbuf_data;
+        //sending on topic uncompressedImageStream
+        publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", sendDataPtr, sendDataSize);
+      }
+      else
+      {
+        //sending on topic compressedImageStream
+        publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", sendDataPtr, sendDataSize);
+      }
+    }
+    else //no compression
+    {
+      sendDataSize = sizeof(pixbuf_data);
+      sendDataPtr = pixbuf_data;
+      //sending on topic uncompressedImageStream
+      publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", sendDataPtr, sendDataSize);
+    }
   }
   else
   {
@@ -175,22 +203,22 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
   }
 
 
-    if (pixbuf != NULL) {
-        g_object_unref(pixbuf);
-        pixbuf = NULL;
-    }
+  if (pixbuf != NULL) {
+    g_object_unref(pixbuf);
+    pixbuf = NULL;
+  }
 
-    pixbuf = gdk_pixbuf_new_from_data(pixbuf_data,
-        GDK_COLORSPACE_RGB,
-        FALSE,
-        8,
-        pixbuf_width,
-        pixbuf_height,
-        pixbuf_rowstride,
-        NULL,
-        NULL);
+  pixbuf = gdk_pixbuf_new_from_data(pixbuf_data,
+      GDK_COLORSPACE_RGB,
+      FALSE,
+      8,
+      pixbuf_width,
+      pixbuf_height,
+      pixbuf_rowstride,
+      NULL,
+      NULL);
 
-    if (fullscreen != NULL && fullscreen_window != NULL) {
+  if (fullscreen != NULL && fullscreen_window != NULL) {
         if (pixbuf2 != NULL) {
             g_object_unref(pixbuf2);
             pixbuf2 = NULL;
