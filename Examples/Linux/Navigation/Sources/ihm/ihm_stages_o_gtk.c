@@ -202,8 +202,9 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
       sendDataSize = in->size;
       sendDataPtr = pixbuf_data;
       //sending on topic uncompressedImageStream
-      binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
-      publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", binn_ptr(obj), binn_size(obj));
+      //binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
+      //publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", binn_ptr(obj), binn_size(obj));
+      publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", sendDataPtr, sendDataSize);
     }
     binn_free(obj);
   }
