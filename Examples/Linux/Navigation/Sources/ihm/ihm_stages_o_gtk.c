@@ -58,7 +58,7 @@
 #include <Mqtt/MQTTAsync_publish.h>
 #include <binn.h>
 
-int USE_ZLIB_FOR_IMG_COMPRESSION = 0;
+int USE_ZLIB_FOR_IMG_COMPRESSION = 1;
 
 #include <zlib.h>
 
@@ -187,14 +187,15 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
         sendDataSize = in->size;
         sendDataPtr = pixbuf_data;
         //sending on topic uncompressedImageStream
-        binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
+        //binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
         publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", binn_ptr(obj), binn_size(obj));
       }
-      else //error in compression
+      else // compression oK
       {
         //sending on topic compressedImageStream
-        binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
-        publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", binn_ptr(obj), binn_size(obj));
+        //binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
+        printf("Sending out compressed Image of size %d (compressed from %d size)\n",sendDataSize, in->size);
+        publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", sendDataPtr, sendDataSize);
       }
     }
     else //no compression
@@ -202,9 +203,11 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
       sendDataSize = in->size;
       sendDataPtr = pixbuf_data;
       //sending on topic uncompressedImageStream
-      //binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
+      //char* s="hello";
+      //binn_object_set_blob(obj, "data", /*(uint8_t*)s*/pixbuf_data, 100/*strlen(s)*//*sendDataSize*/);
       //publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", binn_ptr(obj), binn_size(obj));
-      publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", sendDataPtr, sendDataSize);
+      //printf("Sending out uncompressed Image size: %d\n",binn_size(obj));
+      publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", sendDataPtr, 500/*sendDataSize*/);
     }
     binn_free(obj);
   }
@@ -355,7 +358,6 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
 }
 
 C_RESULT output_gtk_stage_close(vp_stages_gtk_config_t *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out) {
-    printf("SUREKA - Video stage is closed\n");
     disconnectMQTTConnection(videoClient);
     return (SUCCESS);
 }
