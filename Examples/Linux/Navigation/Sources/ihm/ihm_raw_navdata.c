@@ -235,6 +235,15 @@ navdata_ihm_raw_navdata_update ( const navdata_unpacked_t* const navdata )
     //(unsigned int) pnd->navdata_vision_detect.nb_detected 
     //missing tags loop
     binn_object_set_uint32(obj, "tm", navdata->navdata_time.time);
+//    printf("Navdata tm: %d.%06d\n",(int)((navdata->navdata_time.time & TSECMASK) >> TSECDEC), (int)(navdata->navdata_time.time & TUSECMASK));
+//    time_t timev = time(NULL);
+    struct timeval tv;
+//    time_t temptime;
+    gettimeofday(&tv, NULL);
+//    printf("time: %u %u\n", (unsigned int)tv.tv_sec, (unsigned int)tv.tv_usec);
+    binn_object_set_uint32(obj, "time_sec", (uint32_t)tv.tv_sec);
+    binn_object_set_uint32(obj, "time_usec", (uint32_t)tv.tv_usec);
+//    printf("Navdata time: %f\n",(navdata->navdata_vision_perf.time_custom[17]));
 
     /* Apparently not required
     binn_object_set_uint32(obj, "timestamp", (uint32_t)time(NULL));
