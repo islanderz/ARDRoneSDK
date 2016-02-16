@@ -213,16 +213,18 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
       }
       else // compression oK
       {
-        //sending on topic compressedImageStream
-        binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
         struct timeval tv;
         gettimeofday(&tv, NULL);
         binn_object_set_uint32(obj, "time_sec", (uint32_t)tv.tv_sec);
         binn_object_set_uint32(obj, "time_usec", (uint32_t)tv.tv_usec);
+        //sending on topic compressedImageStream
+       // binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
 
-        printf("Sending out compressed Image of size %d (compressed from %d size)\n",sendDataSize, in->size);
-        publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", binn_ptr(obj), binn_size(obj));
-     //   publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", sendDataPtr, sendDataSize);
+        printf("Sending out compressed Image of size %d (compressed from %d size)\nfollowed by timestamp msg size %d\n",
+            sendDataSize, in->size, binn_size(obj));
+      //  publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", binn_ptr(obj), binn_size(obj));
+        publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", sendDataPtr, sendDataSize);
+        publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream",binn_ptr(obj), binn_size(obj));
       }
     }
     else //no compression
