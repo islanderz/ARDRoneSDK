@@ -59,6 +59,8 @@
 #include <binn.h>
 
 int USE_ZLIB_FOR_IMG_COMPRESSION = 1;
+int USE_PACKET_SPLITTING = 1;
+int MAX_PACKET_SIZE = 3000;
 
 #include <zlib.h>
 
@@ -171,9 +173,28 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
     binn* obj;
     obj = binn_object();
 
-    binn_object_set_uint32(obj, "width", pixbuf_width);
-    binn_object_set_uint32(obj, "height", pixbuf_height);
+    //binn_object_set_uint32(obj, "width", pixbuf_width);
+    //binn_object_set_uint32(obj, "height", pixbuf_height);
 
+/*    if(USE_PACKET_SPLITTING)
+    {
+      binn* packet_obj;
+      packet_obj = binn_object();
+
+      int start = 0;
+      int end = MAX_PACKET_SIZE;
+      int dataSent = 0;
+      uint32_t frameid = 0;
+      uint32_t packetid = 0;
+
+      while(start < 
+
+
+
+
+    }
+  */  
+    
     if(USE_ZLIB_FOR_IMG_COMPRESSION)
     {
       unsigned long ucompSize = in->size;
@@ -193,9 +214,15 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
       else // compression oK
       {
         //sending on topic compressedImageStream
-        //binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
+        binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        binn_object_set_uint32(obj, "time_sec", (uint32_t)tv.tv_sec);
+        binn_object_set_uint32(obj, "time_usec", (uint32_t)tv.tv_usec);
+
         printf("Sending out compressed Image of size %d (compressed from %d size)\n",sendDataSize, in->size);
-        publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", sendDataPtr, sendDataSize);
+        publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", binn_ptr(obj), binn_size(obj));
+     //   publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", sendDataPtr, sendDataSize);
       }
     }
     else //no compression

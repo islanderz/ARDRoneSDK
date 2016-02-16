@@ -27,7 +27,7 @@
 #define CLIENTID    "ExampleClientPub"
 #define TOPIC       "MQTT Examples"
 #define PAYLOAD     "Hello World!"
-#define QOS         1
+#define QOS         0
 #define TIMEOUT     10000L
 
 volatile MQTTAsync_token deliveredtoken;
