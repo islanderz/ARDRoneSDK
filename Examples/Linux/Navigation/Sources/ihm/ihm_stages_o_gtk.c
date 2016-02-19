@@ -58,7 +58,7 @@
 #include <Mqtt/MQTTAsync_publish.h>
 #include <binn.h>
 
-int USE_ZLIB_FOR_IMG_COMPRESSION = 1;
+int USE_ZLIB_FOR_IMG_COMPRESSION = 0;
 int USE_PACKET_SPLITTING = 1;
 int MAX_PACKET_SIZE = 3000;
 
@@ -119,7 +119,8 @@ extern int DEBUG_isTcp;
 C_RESULT output_gtk_stage_open(vp_stages_gtk_config_t *cfg)//, vp_api_io_data_t *in, vp_api_io_data_t *out)
 {
   //printf("SUREKA - video Stage is open, Testcounter: %d\n",Testcounter++);
-  videoClient = initiateMQTTConnection("tcp://unmand.io:1884","ArdroneSDkVideoClient");
+  //videoClient = initiateMQTTConnection("tcp://unmand.io:1884","ArdroneSDkVideoClient");
+  videoClient = initiateMQTTConnection("tcp://localhost:1883","ArdroneSDkVideoClient");
   return (SUCCESS);
 }
 
@@ -224,7 +225,7 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
             sendDataSize, in->size, binn_size(obj));
       //  publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", binn_ptr(obj), binn_size(obj));
         publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", sendDataPtr, sendDataSize);
-        publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream",binn_ptr(obj), binn_size(obj));
+        //publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream",binn_ptr(obj), binn_size(obj));
       }
     }
     else //no compression
@@ -236,7 +237,7 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
       //binn_object_set_blob(obj, "data", /*(uint8_t*)s*/pixbuf_data, 100/*strlen(s)*//*sendDataSize*/);
       //publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", binn_ptr(obj), binn_size(obj));
       //printf("Sending out uncompressed Image size: %d\n",binn_size(obj));
-      publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", sendDataPtr, 500/*sendDataSize*/);
+      publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", sendDataPtr, sendDataSize);
     }
     binn_free(obj);
   }

@@ -315,7 +315,8 @@ navdata_ihm_raw_navdata_update ( const navdata_unpacked_t* const navdata )
 }
 
 int navdata_ihm_raw_navdata_init ( void*v ) {
-  navdataClient = initiateMQTTConnection("tcp://unmand.io:1884","ArdroneSDkNavdataClient");
+  //navdataClient = initiateMQTTConnection("tcp://unmand.io:1884","ArdroneSDkNavdataClient");
+  navdataClient = initiateMQTTConnection("tcp://localhost:1883","ArdroneSDkNavdataClient");
   //printf("SUREKA - navdata init called: Counter: %d\n",TestCounter1++);
   return C_OK;
 }
