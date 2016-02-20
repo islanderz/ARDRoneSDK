@@ -247,6 +247,8 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
       vp_os_memcpy(bufWithTimestamp + 8, pixbuf_data, in->size);
 
       publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", bufWithTimestamp, sendDataSize + 8);
+
+      vp_os_free(bufWithTimestamp);
     }
     //binn_free(obj);
   }
