@@ -171,8 +171,8 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
 
     unsigned long sendDataSize = 0;
     uint8_t* sendDataPtr;
-    binn* obj;
-    obj = binn_object();
+   // binn* obj;
+   // obj = binn_object();
 
     //binn_object_set_uint32(obj, "width", pixbuf_width);
     //binn_object_set_uint32(obj, "height", pixbuf_height);
@@ -210,19 +210,15 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
         sendDataPtr = pixbuf_data;
         //sending on topic uncompressedImageStream
         //binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
-        publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", binn_ptr(obj), binn_size(obj));
+      //  publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", binn_ptr(obj), binn_size(obj));
       }
       else // compression oK
       {
-        struct timeval tv;
-        gettimeofday(&tv, NULL);
-        binn_object_set_uint32(obj, "time_sec", (uint32_t)tv.tv_sec);
-        binn_object_set_uint32(obj, "time_usec", (uint32_t)tv.tv_usec);
         //sending on topic compressedImageStream
        // binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
 
-        printf("Sending out compressed Image of size %d (compressed from %d size)\nfollowed by timestamp msg size %d\n",
-            sendDataSize, in->size, binn_size(obj));
+      //  printf("Sending out compressed Image of size %d (compressed from %d size)\nfollowed by timestamp msg size %d\n",
+       //     sendDataSize, in->size, binn_size(obj));
       //  publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", binn_ptr(obj), binn_size(obj));
         publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", sendDataPtr, sendDataSize);
         //publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream",binn_ptr(obj), binn_size(obj));
@@ -232,14 +228,27 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
     {
       sendDataSize = in->size;
       sendDataPtr = pixbuf_data;
+
+      struct timeval tv;
+      gettimeofday(&tv, NULL);
+      uint32_t seconds = (uint32_t)tv.tv_sec;
+      uint32_t useconds = (uint32_t)tv.tv_usec;
+     // binn_object_set_uint32(obj, "time_sec", (uint32_t)tv.tv_sec);
+     // binn_object_set_uint32(obj, "time_usec", (uint32_t)tv.tv_usec);
       //sending on topic uncompressedImageStream
       //char* s="hello";
       //binn_object_set_blob(obj, "data", /*(uint8_t*)s*/pixbuf_data, 100/*strlen(s)*//*sendDataSize*/);
       //publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", binn_ptr(obj), binn_size(obj));
       //printf("Sending out uncompressed Image size: %d\n",binn_size(obj));
-      publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", sendDataPtr, sendDataSize);
+
+      uint8_t* bufWithTimestamp = (uint8_t*)vp_os_malloc(sendDataSize + 8);
+      vp_os_memcpy(bufWithTimestamp, &seconds, 4);
+      vp_os_memcpy(bufWithTimestamp + 4, &useconds, 4);
+      vp_os_memcpy(bufWithTimestamp + 8, pixbuf_data, in->size);
+
+      publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", bufWithTimestamp, sendDataSize + 8);
     }
-    binn_free(obj);
+    //binn_free(obj);
   }
   else
   {

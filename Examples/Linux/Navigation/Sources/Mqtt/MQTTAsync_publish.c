@@ -61,27 +61,6 @@ void onDisconnect(void* context, MQTTAsync_successData* response)
 	finished = 1;
 }
 
-/*SUREKA-TODO-Check that we really don't need this function. Ideally we are getting a
-//MQTT_SUCCESS so we are just notifying based on that. 
-void onSend(void* context, MQTTAsync_successData* response)
-{
-	MQTTAsync client = (MQTTAsync)context;
-	int rc;
-
-	printf("Message with token value %d delivery confirmed\n", response->token);
-
-	MQTTAsync_disconnectOptions opts = MQTTAsync_disconnectOptions_initializer;
-	opts.onSuccess = onDisconnect;
-	opts.context = client;
-
-	if ((rc = MQTTAsync_disconnect(client, &opts)) != MQTTASYNC_SUCCESS)
-	{
-		printf("Failed to start sendMessage, return code %d\n", rc);
-		exit(-1);	
-	}
-}
-*/
-
 void onConnectFailure(void* context, MQTTAsync_failureData* response)
 {
 	printf("Connect failed, rc %d\n", response ? response->code : 0);
@@ -89,7 +68,6 @@ void onConnectFailure(void* context, MQTTAsync_failureData* response)
 }
 
 
-//Sureka-TODO-Later We do not want to send a Hello world message on Connect! Fine for now.
 void onConnect(void* context, MQTTAsync_successData* response)
 {
 	printf("Successful connection\n");
@@ -126,33 +104,8 @@ MQTTAsync initiateMQTTConnection(char* Address, char* ClientID)
   }
   return client;
 }
-//Sureka-TODO - Do not initialize a client each time a message needs to be published
 int publishMqttMsgOnTopic(MQTTAsync client, char* topic, void* data, int datalen)
 {
-/* -- Sureka - NOTE - Attempt to initialize client just once 
-  MQTTAsync client;
-  MQTTAsync_connectOptions conn_opts = MQTTAsync_connectOptions_initializer;
-  MQTTAsync_token token;
-  int rc;
-
-  MQTTAsync_create(&client, ADDRESS, CLIENTID, MQTTCLIENT_PERSISTENCE_NONE, NULL);
-
-  MQTTAsync_setCallbacks(client, NULL, connlost, NULL, NULL);
-
-  conn_opts.keepAliveInterval = 20;
-  conn_opts.cleansession = 1;
-  conn_opts.onSuccess = onConnect;
-  conn_opts.onFailure = onConnectFailure;
-  conn_opts.context = client;
-
-
-  if ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS)
-  {
-    printf("Failed to start connect, return code %d\n", rc);
-    exit(-1);
-  }
-*/
- 
   int rc; 
   MQTTAsync_message pubmsg = MQTTAsync_message_initializer;
   pubmsg.payload = data;
@@ -161,7 +114,6 @@ int publishMqttMsgOnTopic(MQTTAsync client, char* topic, void* data, int datalen
   pubmsg.retained = 0;
 
   MQTTAsync_responseOptions opts = MQTTAsync_responseOptions_initializer;
-//	opts.onSuccess = onSend;
 	opts.context = client;
 
   if ((rc = MQTTAsync_sendMessage(client, topic, &pubmsg, &opts)) != MQTTASYNC_SUCCESS)
@@ -169,12 +121,6 @@ int publishMqttMsgOnTopic(MQTTAsync client, char* topic, void* data, int datalen
     printf("Failed to send Message on topic %s. Return code %d\n", topic, rc);
     exit(-1);
   }
-//  else
-// {
-//    printf("Published message on topic %s\n", topic);
-//  }
-
-//  MQTTAsync_destroy(&client);
   return rc;
 }
 
@@ -210,7 +156,6 @@ int publishText()
 
 	conn_opts.keepAliveInterval = 20;
 	conn_opts.cleansession = 1;
-	//conn_opts.onSuccess = onConnect;
 	conn_opts.onFailure = onConnectFailure;
 	conn_opts.context = client;
 	if ((rc = MQTTAsync_connect(client, &conn_opts)) != MQTTASYNC_SUCCESS)
