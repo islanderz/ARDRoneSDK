@@ -8,20 +8,21 @@
 /* System includes */
 #include <sys/time.h>
 #include <gtk/gtk.h>
-
+#include <mosquitto.h>
 /* SDK includes */
 #include <ardrone_api.h>
 #include <navdata_common.h>
 
 /*Mqtt and serialization includes*/
-#include <Mqtt/MQTTAsync_publish.h>
+
 #include <binn.h>
 
 /* Local declarations */
 #include <ihm/ihm_raw_navdata.h>
 
 //The MQTT Client
-MQTTAsync navdataClient;
+struct mosquitto *navmosq = NULL;
+
 
 #define MAX_FIELDS (100)
 GtkTreeStore  *treestore;
@@ -181,10 +182,8 @@ extern uint8_t navdata_buffer[NAVDATA_MAX_SIZE];
 int
 navdata_ihm_raw_navdata_update ( const navdata_unpacked_t* const navdata )
 {
- // printf("SUREKA - INSIUDE RAWE BNVAFATA UPDA: Counter: %d\n", TestCounter1++);
-
   const navdata_demo_t* nd = &navdata->navdata_demo;
-  if(navdataClient != NULL)
+  if(navmosq)
   {
     //serializing using binn library.
 
@@ -233,29 +232,28 @@ navdata_ihm_raw_navdata_update ( const navdata_unpacked_t* const navdata )
     binn_object_set_uint32(obj, "motor3", navdata->navdata_pwm.motor3);
     binn_object_set_uint32(obj, "motor4", navdata->navdata_pwm.motor4);
     //(unsigned int) pnd->navdata_vision_detect.nb_detected 
-    //missing tags loop
     binn_object_set_uint32(obj, "tm", navdata->navdata_time.time);
-//    printf("Navdata tm: %d.%06d\n",(int)((navdata->navdata_time.time & TSECMASK) >> TSECDEC), (int)(navdata->navdata_time.time & TUSECMASK));
-//    time_t timev = time(NULL);
     struct timeval tv;
-//    time_t temptime;
     gettimeofday(&tv, NULL);
-//    printf("time: %u %u\n", (unsigned int)tv.tv_sec, (unsigned int)tv.tv_usec);
     binn_object_set_uint32(obj, "time_sec", (uint32_t)tv.tv_sec);
     binn_object_set_uint32(obj, "time_usec", (uint32_t)tv.tv_usec);
-//    printf("Navdata time: %f\n",(navdata->navdata_vision_perf.time_custom[17]));
 
     /* Apparently not required
-    binn_object_set_uint32(obj, "timestamp", (uint32_t)time(NULL));
-    binn_object_set_uint16(obj, "tag", nd->tag);
-    binn_object_set_uint16(obj, "size", nd->size);
-    binn_object_set_uint32(obj, "num_frames", nd->num_frames);
-    binn_object_set_uint32(obj, "detection_camera_type", nd->detection_camera_type);
-    */
+       binn_object_set_uint32(obj, "timestamp", (uint32_t)time(NULL));
+       binn_object_set_uint16(obj, "tag", nd->tag);
+       binn_object_set_uint16(obj, "size", nd->size);
+       binn_object_set_uint32(obj, "num_frames", nd->num_frames);
+       binn_object_set_uint32(obj, "detection_camera_type", nd->detection_camera_type);
+     */
 
     //publish data from the binn using mqtt
-    publishMqttMsgOnTopic(navdataClient, "uas/uav1/navdata", binn_ptr(obj), binn_size(obj));
-    
+
+    int ret = mosquitto_publish (navmosq, NULL, "uas/uav1/navdata", binn_size(obj), binn_ptr(obj), 0, false);
+    if (ret)
+    {
+      fprintf (stderr, "NavClient: Can't publish to Mosquitto server\n");
+    }
+
     // release the buffer
     binn_free(obj);
   }
@@ -300,28 +298,46 @@ navdata_ihm_raw_navdata_update ( const navdata_unpacked_t* const navdata )
 		snprintf(buf,sizeof(buf),"%3.1f",navdata->navdata_demo.psi/1000);	setfield(NAVDATA_DEMO_TAG,buf,&cpt);
 		snprintf(buf,sizeof(buf),"%3.1f",navdata->navdata_demo.theta/1000);	setfield(NAVDATA_DEMO_TAG,buf,&cpt);
 
-		cpt=0;
-		snprintf(buf,sizeof(buf),"%x",navdata->navdata_games.double_tap_counter);	setfield(NAVDATA_GAMES_TAG,buf,&cpt);
-		snprintf(buf,sizeof(buf),"%x",navdata->navdata_games.finish_line_counter);	setfield(NAVDATA_GAMES_TAG,buf,&cpt);
+    cpt=0;
+    snprintf(buf,sizeof(buf),"%x",navdata->navdata_games.double_tap_counter);	setfield(NAVDATA_GAMES_TAG,buf,&cpt);
+    snprintf(buf,sizeof(buf),"%x",navdata->navdata_games.finish_line_counter);	setfield(NAVDATA_GAMES_TAG,buf,&cpt);
 
-		gtk_widget_draw(GTK_WIDGET(view), NULL);
-		gdk_threads_leave(); //http://library.gnome.org/devel/gdk/stable/gdk-Threads.html
+    gtk_widget_draw(GTK_WIDGET(view), NULL);
+    gdk_threads_leave(); //http://library.gnome.org/devel/gdk/stable/gdk-Threads.html
 
-	}
+  }
 
-	previous_time = current_time;
-	previous_frequence = lowpass_frequence;
-	return C_OK;
+  previous_time = current_time;
+  previous_frequence = lowpass_frequence;
+  return C_OK;
 }
 
 int navdata_ihm_raw_navdata_init ( void*v ) {
-  //navdataClient = initiateMQTTConnection("tcp://unmand.io:1884","ArdroneSDkNavdataClient");
-  navdataClient = initiateMQTTConnection("tcp://localhost:1883","ArdroneSDkNavdataClient");
-  //printf("SUREKA - navdata init called: Counter: %d\n",TestCounter1++);
+
+  mosquitto_lib_init();
+
+  navmosq = mosquitto_new ("NavClient", true, NULL);
+
+  if (!navmosq)
+  {
+    fprintf (stderr, "Navclient: Can't initialize Mosquitto library\n");		
+  }	
+
+  mosquitto_username_pw_set (navmosq, "admin", "admin");
+
+  int ret = mosquitto_connect_async (navmosq, "localhost", 1883, 0);
+
+  if (ret)
+  {
+    fprintf (stderr, "Navclient: Can't connect to Mosquitto server\n");
+  }
+
   return C_OK;
 }
 int navdata_ihm_raw_navdata_release () {
-  //printf("SUREKA - navdata release called\n");
+  mosquitto_disconnect (navmosq);
+  mosquitto_destroy (navmosq);
+  mosquitto_lib_cleanup();
   return C_OK;
 }
 

@@ -55,16 +55,15 @@
 #include "common/mobile_config.h"
 
 #include <video_encapsulation.h>
-#include <Mqtt/MQTTAsync_publish.h>
+#include <mosquitto.h>
 #include <binn.h>
 
 int USE_ZLIB_FOR_IMG_COMPRESSION = 0;
-int USE_PACKET_SPLITTING = 1;
-int MAX_PACKET_SIZE = 3000;
+
 
 #include <zlib.h>
 
-MQTTAsync videoClient;
+struct mosquitto *vidmosq = NULL;
 
 extern GtkWidget *ihm_ImageWin, *ihm_ImageEntry[9], *ihm_ImageDA, *ihm_VideoStream_VBox;
 /* For fullscreen video display */
@@ -118,9 +117,24 @@ extern int DEBUG_isTcp;
 
 C_RESULT output_gtk_stage_open(vp_stages_gtk_config_t *cfg)//, vp_api_io_data_t *in, vp_api_io_data_t *out)
 {
-  //printf("SUREKA - video Stage is open, Testcounter: %d\n",Testcounter++);
-  //videoClient = initiateMQTTConnection("tcp://unmand.io:1884","ArdroneSDkVideoClient");
-  videoClient = initiateMQTTConnection("tcp://localhost:1883","ArdroneSDkVideoClient");
+  mosquitto_lib_init();
+
+  vidmosq = mosquitto_new ("VidClient", true, NULL);
+
+	if (!vidmosq)
+  {
+    fprintf (stderr, "VidClient: Can't initialize Mosquitto library\n");		
+	}	
+
+  mosquitto_username_pw_set (vidmosq, "admin", "admin");
+
+  int ret = mosquitto_connect_async (vidmosq, "localhost", 1883, 0);
+
+  if (ret)
+  {
+    fprintf (stderr, "VidClient: Can't connect to Mosquitto server\n");
+  }
+
   return (SUCCESS);
 }
 
@@ -132,9 +146,6 @@ char video_information_buffer[1024];
 int video_information_buffer_index = 0;
 
 C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out) {
-
-
-  //printf("SUREKA  - INSIDE OUTPUT GTK STAGE TRANSFORM, Counter: %d\n", Testcounter++);
 
   if (!ihm_is_initialized) return SUCCESS;
   if (ihm_ImageWin == NULL) return SUCCESS;
@@ -165,36 +176,11 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
   pixbuf_rowstride = dec_config->rowstride;
   pixbuf_data = (uint8_t*) in->buffers[in->indexBuffer];
 
-  if(videoClient != NULL && pixbuf_data != NULL)
+  if(vidmosq && pixbuf_data != NULL)
   {
-    //There is a possibility of an error in the sizeof(pixbuf_data) call below.
-
     unsigned long sendDataSize = 0;
     uint8_t* sendDataPtr;
-   // binn* obj;
-   // obj = binn_object();
-
-    //binn_object_set_uint32(obj, "width", pixbuf_width);
-    //binn_object_set_uint32(obj, "height", pixbuf_height);
-
-/*    if(USE_PACKET_SPLITTING)
-    {
-      binn* packet_obj;
-      packet_obj = binn_object();
-
-      int start = 0;
-      int end = MAX_PACKET_SIZE;
-      int dataSent = 0;
-      uint32_t frameid = 0;
-      uint32_t packetid = 0;
-
-      while(start < 
-
-
-
-
-    }
-  */  
+    int compressionFailure = 0;
     
     if(USE_ZLIB_FOR_IMG_COMPRESSION)
     {
@@ -203,28 +189,22 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
 
       sendDataPtr = (uint8_t*)vp_os_malloc(sendDataSize);
       int ret_cp = compress(sendDataPtr, &sendDataSize, pixbuf_data, ucompSize);
-      if(ret_cp != Z_OK)
+      if(ret_cp != Z_OK) //compression error
       {
         printf("Some error in compression... sending uncompressed data\n");
-        sendDataSize = in->size;
-        sendDataPtr = pixbuf_data;
-        //sending on topic uncompressedImageStream
-        //binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
-      //  publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", binn_ptr(obj), binn_size(obj));
+        compressionFailure = 1; // this will result in later sending out uncompressed data below
       }
       else // compression oK
       {
         //sending on topic compressedImageStream
-       // binn_object_set_blob(obj, "data", sendDataPtr, sendDataSize);
-
-      //  printf("Sending out compressed Image of size %d (compressed from %d size)\nfollowed by timestamp msg size %d\n",
-       //     sendDataSize, in->size, binn_size(obj));
-      //  publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", binn_ptr(obj), binn_size(obj));
-        publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream", sendDataPtr, sendDataSize);
-        //publishMqttMsgOnTopic(videoClient, "uas/uav1/compressedImageStream",binn_ptr(obj), binn_size(obj));
+        int ret = mosquitto_publish (vidmosq, NULL, "uas/uav1/compressedImageStream", sendDataSize, sendDataPtr, 0, false);
+        if (ret)
+        {
+          fprintf (stderr, "VidClient: Can't publish to Mosquitto server\n");
+        }
       }
     }
-    else //no compression
+    else if(!USE_ZLIB_FOR_IMG_COMPRESSION || compressionFailure == 1)//no compression
     {
       sendDataSize = in->size;
       sendDataPtr = pixbuf_data;
@@ -233,24 +213,20 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
       gettimeofday(&tv, NULL);
       uint32_t seconds = (uint32_t)tv.tv_sec;
       uint32_t useconds = (uint32_t)tv.tv_usec;
-     // binn_object_set_uint32(obj, "time_sec", (uint32_t)tv.tv_sec);
-     // binn_object_set_uint32(obj, "time_usec", (uint32_t)tv.tv_usec);
-      //sending on topic uncompressedImageStream
-      //char* s="hello";
-      //binn_object_set_blob(obj, "data", /*(uint8_t*)s*/pixbuf_data, 100/*strlen(s)*//*sendDataSize*/);
-      //publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", binn_ptr(obj), binn_size(obj));
-      //printf("Sending out uncompressed Image size: %d\n",binn_size(obj));
 
       uint8_t* bufWithTimestamp = (uint8_t*)vp_os_malloc(sendDataSize + 8);
       vp_os_memcpy(bufWithTimestamp, &seconds, 4);
       vp_os_memcpy(bufWithTimestamp + 4, &useconds, 4);
       vp_os_memcpy(bufWithTimestamp + 8, pixbuf_data, in->size);
 
-      publishMqttMsgOnTopic(videoClient, "uas/uav1/uncompressedImageStream", bufWithTimestamp, sendDataSize + 8);
+      int ret = mosquitto_publish (vidmosq, NULL, "uas/uav1/uncompressedImageStream", sendDataSize + 8, bufWithTimestamp, 0, false);
+      if (ret)
+      {
+        fprintf (stderr, "VidClient: Can't publish to Mosquitto server\n");
+      }
 
       vp_os_free(bufWithTimestamp);
     }
-    //binn_free(obj);
   }
   else
   {
@@ -399,7 +375,9 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
 }
 
 C_RESULT output_gtk_stage_close(vp_stages_gtk_config_t *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out) {
-    disconnectMQTTConnection(videoClient);
+  mosquitto_disconnect (vidmosq);
+  mosquitto_destroy (vidmosq);
+  mosquitto_lib_cleanup();
     return (SUCCESS);
 }
 
