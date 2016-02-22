@@ -47,6 +47,24 @@ static void setfield(int tag,char * value,int*counter)
 	(*counter)++;
 }
 
+void mqtt_message_callback(struct mosquitto *mosq, void *obj, 
+    const struct mosquitto_message *message)
+  {
+  // Note: nothing in the Mosquitto docs or examples suggests that we
+  //  must free this message structure after processing it.
+  printf ("Got message: %s\n", (char *)message->payload);
+  }
+
+void mqtt_subscribe_callback(struct mosquitto *mosq, void *obj, int mid, int qos_count, const int *granted_qos)
+{
+  printf("Subscribe succeeded\n");
+}
+
+void mqtt_connect_callback(struct mosquitto *mosq, void *obj, int rc)
+{
+  printf("MQTT Connected with code: %d\n", rc);
+}
+
 
 static GtkTreeModel *
 create_and_fill_model (void)
@@ -185,6 +203,7 @@ navdata_ihm_raw_navdata_update ( const navdata_unpacked_t* const navdata )
   const navdata_demo_t* nd = &navdata->navdata_demo;
   if(navmosq)
   {
+    mosquitto_loop_start(navmosq);
     //serializing using binn library.
 
     //initialize obj
@@ -317,11 +336,14 @@ int navdata_ihm_raw_navdata_init ( void*v ) {
   mosquitto_lib_init();
 
   navmosq = mosquitto_new ("NavClient", true, NULL);
-
   if (!navmosq)
   {
     fprintf (stderr, "Navclient: Can't initialize Mosquitto library\n");		
   }	
+  
+  mosquitto_subscribe_callback_set (navmosq, mqtt_subscribe_callback);
+  mosquitto_message_callback_set (navmosq, mqtt_message_callback);
+  mosquitto_connect_callback_set (navmosq, mqtt_connect_callback);
 
   mosquitto_username_pw_set (navmosq, "admin", "admin");
 
@@ -331,7 +353,12 @@ int navdata_ihm_raw_navdata_init ( void*v ) {
   {
     fprintf (stderr, "Navclient: Can't connect to Mosquitto server\n");
   }
-
+  ret = mosquitto_subscribe(navmosq, NULL, "/ardrone/takeoff", 0);
+  if (ret)
+  {
+    fprintf (stderr, "Navclient: Can't publish to Mosquitto server\n");
+  }
+ 
   return C_OK;
 }
 int navdata_ihm_raw_navdata_release () {
