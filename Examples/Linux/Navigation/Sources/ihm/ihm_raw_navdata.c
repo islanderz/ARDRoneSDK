@@ -33,27 +33,37 @@ GtkTreeIter   navdataFields[NAVDATA_NUM_TAGS][MAX_FIELDS];
 static void addfield(int tag,char * name,char*comment,int*counter)
 {
 	GtkTreeIter child;
-	  gtk_tree_store_append(treestore, &child, &navdataBlocks[tag]);
-	  gtk_tree_store_set(treestore, &child,COL_FIELD, name,COL_VALUE,"",COL_COMMENT,comment,-1);
-	  navdataFields[tag][*counter]=child;
-	  (*counter)++;
+  gtk_tree_store_append(treestore, &child, &navdataBlocks[tag]);
+  gtk_tree_store_set(treestore, &child,COL_FIELD, name,COL_VALUE,"",COL_COMMENT,comment,-1);
+  navdataFields[tag][*counter]=child;
+  (*counter)++;
 }
 
 static void setfield(int tag,char * value,int*counter)
 {
-	GtkTreeIter child;
-	child = navdataFields[tag][*counter];
-	gtk_tree_store_set(treestore, &child,COL_VALUE, value,-1);
-	(*counter)++;
+  GtkTreeIter child;
+  child = navdataFields[tag][*counter];
+  gtk_tree_store_set(treestore, &child,COL_VALUE, value,-1);
+  (*counter)++;
 }
 
 void mqtt_message_callback(struct mosquitto *mosq, void *obj, 
     const struct mosquitto_message *message)
-  {
+{
   // Note: nothing in the Mosquitto docs or examples suggests that we
   //  must free this message structure after processing it.
-  printf ("Got message: %s\n", (char *)message->payload);
+  printf ("Got message: %s on topic %s\n", (char *)message->payload, message->topic);
+  if(!(strcmp(message->topic, "/ardrone/takeoff")))
+  {
+    printf ("Got takeoff message: %s \n", (char *)message->payload); 
+    ardrone_tool_set_ui_pad_start(1);
   }
+  else if(!(strcmp(message->topic, "/ardrone/land")))
+  {
+    printf ("Got land message: %s \n", (char *)message->payload);
+    ardrone_tool_set_ui_pad_start(0);
+  }
+}
 
 void mqtt_subscribe_callback(struct mosquitto *mosq, void *obj, int mid, int qos_count, const int *granted_qos)
 {
@@ -354,6 +364,7 @@ int navdata_ihm_raw_navdata_init ( void*v ) {
     fprintf (stderr, "Navclient: Can't connect to Mosquitto server\n");
   }
   ret = mosquitto_subscribe(navmosq, NULL, "/ardrone/takeoff", 0);
+  ret = mosquitto_subscribe(navmosq, NULL, "/ardrone/land", 0);
   if (ret)
   {
     fprintf (stderr, "Navclient: Can't publish to Mosquitto server\n");
