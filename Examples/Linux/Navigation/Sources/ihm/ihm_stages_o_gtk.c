@@ -58,11 +58,15 @@
 #include <mosquitto.h>
 #include <binn.h>
 
-int USE_ZLIB_FOR_IMG_COMPRESSION = 0;
+//DO NOT CHANGE
+int USE_ZLIB_FOR_IMG_COMPRESSION = 0;//DO NOT CHANGE
+//DO NOT CHANGE
+//The compressed image stream isn't handled on the ROS side yet.
 
 
 #include <zlib.h>
 
+//The video mosquitto client
 struct mosquitto *vidmosq = NULL;
 
 extern GtkWidget *ihm_ImageWin, *ihm_ImageEntry[9], *ihm_ImageDA, *ihm_VideoStream_VBox;
@@ -115,8 +119,11 @@ extern float DEBUG_latency;
 extern int DEBUG_isTcp;
 
 
+//This function is called at the beginning of the output_gtk_stage open video thread. It initializes the MQTT lib and client.
 C_RESULT output_gtk_stage_open(vp_stages_gtk_config_t *cfg)//, vp_api_io_data_t *in, vp_api_io_data_t *out)
 {
+
+  //Initialize the mosquitto library
   mosquitto_lib_init();
 
   vidmosq = mosquitto_new ("VidClient", true, NULL);
@@ -128,6 +135,7 @@ C_RESULT output_gtk_stage_open(vp_stages_gtk_config_t *cfg)//, vp_api_io_data_t 
 
   mosquitto_username_pw_set (vidmosq, "admin", "admin");
 
+  //Connect the mosquitto client to the broker
   int ret = mosquitto_connect_async (vidmosq, "localhost", 1883, 0);
 
   if (ret)
@@ -176,18 +184,24 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
   pixbuf_rowstride = dec_config->rowstride;
   pixbuf_data = (uint8_t*) in->buffers[in->indexBuffer];
 
+  //Here we are going to get the pixel data from the buffer, add a timestamp to it and then publish it over MQTT.
   if(vidmosq && pixbuf_data != NULL)
   {
     unsigned long sendDataSize = 0;
     uint8_t* sendDataPtr;
     int compressionFailure = 0;
     
+    //If we are using zlib for imgCompression, we're gonna try to compress the image and send it over the compressedImageStream topic.
+    //If there is any error in the compression, we're gonna send the uncompressed image.
+    //Please note that compressed images aren't yet handled on the ROS Side. They are missing the timestamp addition also.
     if(USE_ZLIB_FOR_IMG_COMPRESSION)
     {
-      unsigned long ucompSize = in->size;
+      unsigned long ucompSize = in->size;//the uncompressed size
       sendDataSize = compressBound(ucompSize);
 
       sendDataPtr = (uint8_t*)vp_os_malloc(sendDataSize);
+
+      //call zlib's compress function
       int ret_cp = compress(sendDataPtr, &sendDataSize, pixbuf_data, ucompSize);
       if(ret_cp != Z_OK) //compression error
       {
@@ -204,27 +218,39 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
         }
       }
     }
-    else if(!USE_ZLIB_FOR_IMG_COMPRESSION || compressionFailure == 1)//no compression
+    //no Compression
+    else if(!USE_ZLIB_FOR_IMG_COMPRESSION || compressionFailure == 1)
     {
       sendDataSize = in->size;
       sendDataPtr = pixbuf_data;
 
+      //Get the current time
       struct timeval tv;
       gettimeofday(&tv, NULL);
+      //Extract the seconds and microseconds from the current time
       uint32_t seconds = (uint32_t)tv.tv_sec;
       uint32_t useconds = (uint32_t)tv.tv_usec;
 
+      //Create a new buffer that we would send. It contains the image data + 8 bytes (4*2 for each seconds and microseconds addition)
       uint8_t* bufWithTimestamp = (uint8_t*)vp_os_malloc(sendDataSize + 8);
+
+      //Copy the seconds field to the first 4 bytes
       vp_os_memcpy(bufWithTimestamp, &seconds, 4);
+
+      //Copy the microseconds field to the next 4 bytes
       vp_os_memcpy(bufWithTimestamp + 4, &useconds, 4);
+
+      //Copy the image data in rest of the buffer
       vp_os_memcpy(bufWithTimestamp + 8, pixbuf_data, in->size);
 
+      //Send the image buffer with Timestamp over MQTT.
       int ret = mosquitto_publish (vidmosq, NULL, "uas/uav1/uncompressedImageStream", sendDataSize + 8, bufWithTimestamp, 0, false);
       if (ret)
       {
         fprintf (stderr, "VidClient: Can't publish to Mosquitto server\n");
       }
 
+      //Free the buffer
       vp_os_free(bufWithTimestamp);
     }
   }
@@ -374,11 +400,14 @@ C_RESULT output_gtk_stage_transform(vp_stages_gtk_config_t *cfg, vp_api_io_data_
     return (SUCCESS);
 }
 
+//This function is claled when the video thread output_gtk_stage closes.
 C_RESULT output_gtk_stage_close(vp_stages_gtk_config_t *cfg, vp_api_io_data_t *in, vp_api_io_data_t *out) {
+
+  //Disconnect, destroy and cleanup the mosquitto connection and client
   mosquitto_disconnect (vidmosq);
   mosquitto_destroy (vidmosq);
   mosquitto_lib_cleanup();
-    return (SUCCESS);
+  return (SUCCESS);
 }
 
 static vp_os_mutex_t draw_trackers_update;

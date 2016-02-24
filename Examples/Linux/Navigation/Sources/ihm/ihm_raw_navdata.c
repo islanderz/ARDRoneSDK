@@ -8,19 +8,18 @@
 /* System includes */
 #include <sys/time.h>
 #include <gtk/gtk.h>
-#include <mosquitto.h>
 /* SDK includes */
 #include <ardrone_api.h>
 #include <navdata_common.h>
 
 /*Mqtt and serialization includes*/
-
 #include <binn.h>
+#include <mosquitto.h>
 
 /* Local declarations */
 #include <ihm/ihm_raw_navdata.h>
 
-//The MQTT Client
+//The MQTT Client. This client publishes navdata and subscribes to several incoming MQTT messages from the bridge.
 struct mosquitto *navmosq = NULL;
 
 
@@ -47,29 +46,39 @@ static void setfield(int tag,char * value,int*counter)
   (*counter)++;
 }
 
+//This is the function that handles the incoming mqtt messages. These messages are routed from the tum_ardrone
+//ROS package. The takeoff/land/reset/cmd_vel messages are then mapped to the relevant commands from the ARDroneLib
+//and called. The ARDroneLib handles the messages going through to the ARDrone.
 void mqtt_message_callback(struct mosquitto *mosq, void *obj, 
     const struct mosquitto_message *message)
 {
   // Note: nothing in the Mosquitto docs or examples suggests that we
   //  must free this message structure after processing it.
+
   printf ("Got message: %s on topic %s\n", (char *)message->payload, message->topic);
+
+  //If a takeoff message is received by mqtt. Send the takeoff command to the drone.
   if(!(strcmp(message->topic, "/ardrone/takeoff")))
   {
     printf ("Got takeoff message: %s \n", (char *)message->payload); 
     ardrone_tool_set_ui_pad_start(1);
   }
+  //If a land message message is received by mqtt. Send the land message to the drone.
   else if(!(strcmp(message->topic, "/ardrone/land")))
   {
     printf ("Got land message: %s \n", (char *)message->payload);
     ardrone_tool_set_ui_pad_start(0);
   }
+  //If a reset message is received by mqtt. Send the reset message to the drone.
   else if(!(strcmp(message->topic, "/ardrone/reset")))
   {
     printf ("Got reset message: %s \n", (char*) message->payload);
     ardrone_tool_set_ui_pad_select(1);
   }
+  //If a cmd_vel message is received
   else if(!(strcmp(message->topic, "/ardrone/cmd_vel")))
   {
+    //Extract the command values from the binn serializer.
     binn *obj;
     obj = binn_open(message->payload);
 
@@ -79,6 +88,7 @@ void mqtt_message_callback(struct mosquitto *mosq, void *obj,
     float up_down = binn_object_float(obj, "up_down");
     float turn = binn_object_float(obj, "turn");
 
+    //Make sure the values are within bound and send them over to the drone using a ARDroneLib Command.
     if(
         abs(left_right) <= 1.0 &&
         abs(front_back) <= 1.0 &&
@@ -86,21 +96,23 @@ void mqtt_message_callback(struct mosquitto *mosq, void *obj,
         abs(turn) <= 1.0
       )
     {
+      //the ARDroneLib command to control the drone. Sends velocities in all directions.
       ardrone_tool_set_progressive_cmd(control_flag, left_right, front_back, up_down, turn, 0.0, 0.0);
     }
   }
 }
 
+//Callback when the mqtt client successfully subscribes to a message
 void mqtt_subscribe_callback(struct mosquitto *mosq, void *obj, int mid, int qos_count, const int *granted_qos)
 {
   printf("Subscribe succeeded\n");
 }
 
+//Callback when the mqtt client successfully connects
 void mqtt_connect_callback(struct mosquitto *mosq, void *obj, int rc)
 {
   printf("MQTT Connected with code: %d\n", rc);
 }
-
 
 static GtkTreeModel *
 create_and_fill_model (void)
@@ -139,8 +151,6 @@ create_and_fill_model (void)
 
   return GTK_TREE_MODEL(treestore);
 }
-
-
 
 static GtkWidget *
 create_view_and_model (void)
@@ -233,13 +243,21 @@ static char buf2[1024];
  */
 extern uint8_t navdata_buffer[NAVDATA_MAX_SIZE];
 
+//This is a function that is called several times each second whenever navdata is received by the sdk from the drone.
 int
 navdata_ihm_raw_navdata_update ( const navdata_unpacked_t* const navdata )
 {
+  //Before the navdata is processed by the SDK, we are going to pack it up into a MQTT message and send it over.
+  //The serializer we are using is Binn serializer. 
+  //We have referred to the tum_ardrone code to check which values of the navdata it uses and only those have been populated.
+
   const navdata_demo_t* nd = &navdata->navdata_demo;
   if(navmosq)
   {
+   
+    //This call is to pump the callbacks of data received over MQTT. 
     mosquitto_loop_start(navmosq);
+
     //serializing using binn library.
 
     //initialize obj
@@ -288,6 +306,8 @@ navdata_ihm_raw_navdata_update ( const navdata_unpacked_t* const navdata )
     binn_object_set_uint32(obj, "motor4", navdata->navdata_pwm.motor4);
     //(unsigned int) pnd->navdata_vision_detect.nb_detected 
     binn_object_set_uint32(obj, "tm", navdata->navdata_time.time);
+
+    //Add the timestamp
     struct timeval tv;
     gettimeofday(&tv, NULL);
     binn_object_set_uint32(obj, "time_sec", (uint32_t)tv.tv_sec);
@@ -302,7 +322,6 @@ navdata_ihm_raw_navdata_update ( const navdata_unpacked_t* const navdata )
      */
 
     //publish data from the binn using mqtt
-
     int ret = mosquitto_publish (navmosq, NULL, "uas/uav1/navdata", binn_size(obj), binn_ptr(obj), 0, false);
     if (ret)
     {
@@ -367,28 +386,43 @@ navdata_ihm_raw_navdata_update ( const navdata_unpacked_t* const navdata )
   return C_OK;
 }
 
+//This is the entry point initialization in the navdata thread of the SDK. We are going to initialize our mosquitto library
+//here and connect the client and subscribe it to the relevant topics
 int navdata_ihm_raw_navdata_init ( void*v ) {
 
+  //initiailize the mosquitto library
   mosquitto_lib_init();
 
   navmosq = mosquitto_new ("NavClient", true, NULL);
+
   if (!navmosq)
   {
     fprintf (stderr, "Navclient: Can't initialize Mosquitto library\n");		
   }	
   
+  //set the callbacks.
+
+  //Callback function on successful subscribe
   mosquitto_subscribe_callback_set (navmosq, mqtt_subscribe_callback);
+
+  //Callback function when a message is received over mqtt
   mosquitto_message_callback_set (navmosq, mqtt_message_callback);
+
+  //Callback function on successful connect
   mosquitto_connect_callback_set (navmosq, mqtt_connect_callback);
 
   mosquitto_username_pw_set (navmosq, "admin", "admin");
 
+  //Initiate the Connection of the mqtt client
   int ret = mosquitto_connect_async (navmosq, "localhost", 1883, 0);
 
   if (ret)
   {
     fprintf (stderr, "Navclient: Can't connect to Mosquitto server\n");
   }
+
+  //Subscribe to the topics that are being received over MQTT. These topics are coming over the bridge. The tum_ardrone
+  //is sending them from the other side of the bridge
   ret = mosquitto_subscribe(navmosq, NULL, "/ardrone/takeoff", 0);
   ret = mosquitto_subscribe(navmosq, NULL, "/ardrone/land", 0);
   ret = mosquitto_subscribe(navmosq, NULL, "/ardrone/reset", 0);
@@ -400,10 +434,15 @@ int navdata_ihm_raw_navdata_init ( void*v ) {
  
   return C_OK;
 }
+
+//This function is called when the navdata thread is released.
 int navdata_ihm_raw_navdata_release () {
+
+  //Disconnect, destroy and cleanup the mosquitto library and client
   mosquitto_disconnect (navmosq);
   mosquitto_destroy (navmosq);
   mosquitto_lib_cleanup();
+
   return C_OK;
 }
 
