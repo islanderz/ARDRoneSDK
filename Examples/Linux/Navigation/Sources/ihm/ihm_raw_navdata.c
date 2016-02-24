@@ -63,6 +63,32 @@ void mqtt_message_callback(struct mosquitto *mosq, void *obj,
     printf ("Got land message: %s \n", (char *)message->payload);
     ardrone_tool_set_ui_pad_start(0);
   }
+  else if(!(strcmp(message->topic, "/ardrone/reset")))
+  {
+    printf ("Got reset message: %s \n", (char*) message->payload);
+    ardrone_tool_set_ui_pad_select(1);
+  }
+  else if(!(strcmp(message->topic, "/ardrone/cmd_vel")))
+  {
+    binn *obj;
+    obj = binn_open(message->payload);
+
+    int32_t control_flag = binn_object_int32(obj, "control_flag");
+    float left_right = binn_object_float(obj, "left_right");
+    float front_back = binn_object_float(obj, "front_back");
+    float up_down = binn_object_float(obj, "up_down");
+    float turn = binn_object_float(obj, "turn");
+
+    if(
+        abs(left_right) <= 1.0 &&
+        abs(front_back) <= 1.0 &&
+        abs(up_down) <= 1.0 &&
+        abs(turn) <= 1.0
+      )
+    {
+      ardrone_tool_set_progressive_cmd(control_flag, left_right, front_back, up_down, turn, 0.0, 0.0);
+    }
+  }
 }
 
 void mqtt_subscribe_callback(struct mosquitto *mosq, void *obj, int mid, int qos_count, const int *granted_qos)
@@ -365,9 +391,11 @@ int navdata_ihm_raw_navdata_init ( void*v ) {
   }
   ret = mosquitto_subscribe(navmosq, NULL, "/ardrone/takeoff", 0);
   ret = mosquitto_subscribe(navmosq, NULL, "/ardrone/land", 0);
+  ret = mosquitto_subscribe(navmosq, NULL, "/ardrone/reset", 0);
+  ret = mosquitto_subscribe(navmosq, NULL, "/ardrone/cmd_vel", 0);
   if (ret)
   {
-    fprintf (stderr, "Navclient: Can't publish to Mosquitto server\n");
+    fprintf (stderr, "Navclient: Subscribe failed\n");
   }
  
   return C_OK;
