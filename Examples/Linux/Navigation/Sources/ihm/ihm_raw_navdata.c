@@ -295,10 +295,9 @@ navdata_ihm_raw_navdata_update ( const navdata_unpacked_t* const navdata )
     binn_object_set_float(obj, "vx", nd->vx);
     binn_object_set_float(obj, "vy", nd->vy);
     binn_object_set_float(obj, "vz", nd->vz);
-    //quick grep in tum_ardrone says we don't need this: HS02082016
-    //navdata->navdata_phys_measures.phys_accs[ACC_X],
-    //navdata->navdata_phys_measures.phys_accs[ACC_Y],
-    //navdata->navdata_phys_measures.phys_accs[ACC_Z]
+    binn_object_set_float(obj, "ax", navdata->navdata_phys_measures.phys_accs[ACC_X]);
+    binn_object_set_float(obj, "ay", navdata->navdata_phys_measures.phys_accs[ACC_Y]);
+    binn_object_set_float(obj, "az", navdata->navdata_phys_measures.phys_accs[ACC_Z]);
 
     binn_object_set_uint32(obj, "motor1", navdata->navdata_pwm.motor1);
     binn_object_set_uint32(obj, "motor2", navdata->navdata_pwm.motor2);
