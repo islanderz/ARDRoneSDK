@@ -55,7 +55,7 @@ void mqtt_message_callback(struct mosquitto *mosq, void *obj,
   // Note: nothing in the Mosquitto docs or examples suggests that we
   //  must free this message structure after processing it.
 
-  printf ("Got message: %s on topic %s\n", (char *)message->payload, message->topic);
+  //printf ("Got message: %s on topic %s\n", (char *)message->payload, message->topic);
 
   //If a takeoff message is received by mqtt. Send the takeoff command to the drone.
   if(!(strcmp(message->topic, "/ardrone/takeoff")))
